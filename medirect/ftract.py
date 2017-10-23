@@ -75,6 +75,7 @@ class Ftract(medirect.MEDirect):
         column2 = '\D?(?P<seq_stop>\d+)'
         column3, column4, column5 = features
         column3 = '.*?(?P<feature_key>{})+.*?'.format(column3)
+        column3_nomatch = '.*?(?!P<feature_key>{})+.*?'.format(column3)
         column4 = '.*?(?P<qualifier_key>{})+.*?'.format(column4)
         column5 = '.*?(?P<qualifier_value>{})+.*?'.format(column5)
 
@@ -82,6 +83,8 @@ class Ftract(medirect.MEDirect):
         seqid_line = re.compile('^>.*\|(?P<seqid>.*)\|.*',
                                 re.IGNORECASE)
         line1 = re.compile('^{}\t{}\t{}'.format(column1, column2, column3),
+                           re.IGNORECASE)
+        line1_reset = re.compile('^{}\t{}\t{}'.format(column1, column2, column3_nomatch),
                            re.IGNORECASE)
         line2 = re.compile('^\t\t\t{}\t{}'.format(column4, column5),
                            re.IGNORECASE)
@@ -92,8 +95,17 @@ class Ftract(medirect.MEDirect):
             match = re.search(seqid_line, line)
             if match:
                 seqid = match.group('seqid')
+                seq_start, seq_stop = None, None
                 continue
 
+            # set the positional info if the feature key matches
+            match = re.search(line1, line)
+            if match:
+                seq_start = int(match.group('seq_start'))
+                seq_stop = int(match.group('seq_stop'))
+                continue
+
+            # if there's positional info, and the qualifiers match, yield
             match = re.search(line2, line)
             if match and seq_start and seq_stop:
                 if seq_stop < seq_start:
@@ -104,14 +116,13 @@ class Ftract(medirect.MEDirect):
                 seq_start, seq_stop = None, None
                 continue
 
-            match = re.search(line1, line)
+            # if we encounter a line 1 without matching feature,
+            # reset positional info
+            match = re.search(line1_reset, line)
             if match:
-                seq_start = int(match.group('seq_start'))
-                seq_stop = int(match.group('seq_stop'))
-                continue
-            else:
                 seq_start, seq_stop = None, None
                 continue
+
 
     def main(self, args, *other_args):
         out = csv.writer(args.out)
